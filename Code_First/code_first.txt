@@ -1,0 +1,553 @@
+
+Install-Package Microsoft.EntityFrameworkCore.Tools –v 2.2.0
+Install-Package Microsoft.EntityFrameworkCore.SqlServer –v 2.2.0
+Install-Package Microsoft.EntityFrameworkCore.SqlServer.Design
+
+Uninstall-Package Microsoft.EntityFrameworkCore.Tools -r
+
+
+using P01_HospitalDatabase.Data;
+
+namespace P01_HospitalDatabase
+{
+    public class StartUp
+    {
+        public static void Main(string[] args)
+        {
+            //var db = new HospitalContext();
+            //db.Database.EnsureCreated();
+        }
+    }
+}
+
+namespace P01_HospitalDatabase.Data
+{
+    public class Configuration
+    {
+        public const string ConectionString =
+            @"Server=DESKTOP-SRL2A15\SQLEXPRESS;Database=HospitalDatabase;Integrated Security=True;";
+    }
+}
+
+using System.Collections.Generic;
+
+namespace P01_HospitalDatabase.Data.Models
+{
+    public class Doctor
+    {
+        public int DoctorId { get; set; }
+
+        public string Name { get; set; }
+
+        public string Specialty { get; set; }
+
+        //Colection for this with Foreign Key
+        public ICollection<Visitation> Visitations { get; set; }
+    }
+}
+
+using System;
+
+namespace P01_HospitalDatabase.Data.Models
+{
+    public class Visitation
+    {
+        public int VisitationId { get; set; }
+
+        public DateTime Date { get; set; }
+
+        public string Comments { get; set; }
+
+        //Foreign Key
+        public int DoctorId { get; set; }
+        public Doctor Doctor { get; set; }
+
+        public int PatientId { get; set; }
+        public Patient Patient { get; set; }
+    }
+}
+
+namespace P01_HospitalDatabase.Data.Models
+{
+    public class Patient
+    {
+        public int PatientId { get; set; }
+               
+        public string FirstName { get; set; }
+                
+        public string LastName { get; set; }
+
+        public string Address { get; set; }
+                
+        public string Email { get; set; }
+        
+        public bool HasInsurance { get; set; }
+
+        public ICollection<Visitation> Visitations { get; set; }
+
+        public ICollection<Diagnose> Diagnoses  { get; set; }
+
+        public ICollection<PatientMedicament> Prescriptions { get; set; }
+    }
+}
+
+using System.Collections.Generic;
+
+namespace P01_HospitalDatabase.Data.Models
+{
+    public class Diagnose
+    {
+        public int DiagnoseId { get; set; }
+
+        public string Name { get; set; }
+
+        public string Comments { get; set; }
+
+        public int PatientId { get; set; }
+        public Patient Patient { get; set; }
+    }
+}
+
+namespace P01_HospitalDatabase.Data.Models
+{
+    public class PatientMedicament
+    {
+        public int PatientId { get; set; }
+        public Patient Patient { get; set; }
+
+        public int MedicamentId { get; set; }
+        public Medicament Medicament { get; set; }
+    }
+}
+
+using System.Collections.Generic;
+
+namespace P01_HospitalDatabase.Data.Models
+{
+    public class Medicament
+    {
+        public int MedicamentId { get; set; }
+
+        public string Name { get; set; }
+
+        public ICollection<PatientMedicament> Prescriptions { get; set; }
+    }
+}
+
+namespace P01_HospitalDatabase.Data
+{
+    using Microsoft.EntityFrameworkCore;
+    using P01_HospitalDatabase.Data.Models;
+
+    public class HospitalContext : DbContext
+    {
+        public HospitalContext()
+        {
+
+        }
+
+        public HospitalContext(DbContextOptions options)
+            : base(options)
+        {
+        }
+
+        //gornite ctor sa zadylgitelni, a ot doulu za wsqka tablica
+
+
+        public DbSet<Doctor> Doctors { get; set; }
+        public DbSet<Visitation> Visitations { get; set; }
+        public DbSet<Patient> Patients { get; set; }
+        public DbSet<Diagnose> Diagnoses { get; set; }
+        public DbSet<PatientMedicament> PatientMedicaments { get; set; }
+        public DbSet<Medicament> Medicaments { get; set; }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder
+                                                optionsBuilder)
+        {
+            if (!optionsBuilder.IsConfigured)
+            {
+                optionsBuilder.UseSqlServer
+                    (Configuration.ConectionString);
+            }
+            base.OnConfiguring(optionsBuilder);
+        }
+
+        protected override void OnModelCreating(ModelBuilder
+                                                modelBuilder)
+        {
+            modelBuilder.Entity<Patient>(entity =>
+            {
+                //Primary Key
+                entity.HasKey(p => p.PatientId);
+
+                entity
+                    .Property(p => p.FirstName)
+                    .HasMaxLength(50)                    
+                    .IsUnicode(true);
+
+                entity
+                    .Property(p => p.LastName)
+                    .HasMaxLength(50)
+                    .IsUnicode(true);
+
+                entity
+                    .Property(p => p.Address)
+                    .HasMaxLength(250)
+                    .IsUnicode(true);
+
+
+                entity
+                        .Property(p => p.Email)
+                        .HasMaxLength(80)
+                        .IsUnicode(false);
+                entity
+                    .Property(p => p.HasInsurance);
+                    
+            });
+
+            modelBuilder.Entity<Visitation>(entity =>
+            {
+                entity
+                .HasKey(p => p.VisitationId);
+
+                entity
+                    .Property(p => p.Date)
+                    .HasColumnType("DATETIME2");
+
+                entity
+                    .Property(p => p.Comments)
+                    .HasMaxLength(250)
+                    .IsUnicode(true);
+
+                entity
+                .HasOne(s => s.Patient)
+                .WithMany(p => p.Visitations)
+                .HasForeignKey(s => s.PatientId);
+
+                entity
+                .HasOne(s => s.Doctor)
+                .WithMany(p => p.Visitations)
+                .HasForeignKey(s => s.DoctorId);
+            });
+
+            modelBuilder.Entity<Diagnose>(entity =>
+            {
+                entity
+                .HasKey(k => k.DiagnoseId);
+
+                entity
+                .Property(p => p.Name)
+                .HasMaxLength(50)
+                .IsUnicode(true);
+
+                entity
+                .Property(p => p.Comments)
+                .HasMaxLength(250)
+                .IsUnicode(true);
+
+                entity
+                .HasOne(s => s.Patient)
+                .WithMany(p => p.Diagnoses)
+                .HasForeignKey(s => s.PatientId);
+
+            });
+
+            modelBuilder.Entity<PatientMedicament>(entity =>
+            {
+                entity
+                .HasKey(k => new { k.PatientId, k.MedicamentId });
+
+                entity
+                .HasOne(s => s.Patient)
+                .WithMany(p => p.Prescriptions)
+                .HasForeignKey(s => s.PatientId);
+
+                entity
+                .HasOne(s => s.Medicament)
+                .WithMany(p => p.Prescriptions)
+                .HasForeignKey(s => s.MedicamentId);
+            });
+
+            modelBuilder.Entity<Medicament>(entity =>
+            {
+                entity
+                .HasKey(k => k.MedicamentId);
+
+                entity
+                .Property(p => p.Name)
+                .HasMaxLength(50)
+                .IsUnicode(true);                
+            });
+
+            modelBuilder.Entity<Doctor>(entity =>
+            {
+                entity
+                .HasKey(k => k.DoctorId);
+
+                entity
+                .Property(p => p.Name)
+                .HasMaxLength(100)                
+                .IsUnicode(true);
+
+                entity
+                .Property(p => p.Specialty)
+                .HasMaxLength(100)
+                .IsUnicode(true);
+            });
+        }
+    }
+}
+
+
+
+
+using P03_SalesDatabase.Data;
+using System;
+
+namespace P03_SalesDatabase
+{
+    public class StartUp
+    {
+        public static void Main(string[] args)
+        {
+           // var db = new SalesContext();
+          // db.Database.EnsureCreated();
+        }
+    }
+}
+
+namespace P03_SalesDatabase.Data
+{
+    static class Configuration
+    {
+        public static string ConectionString =
+            @"Server=DESKTOP-SRL2A15\SQLEXPRESS;Database=SalesDatabase;Integrated Security=True;";
+    }
+}
+
+namespace P03_SalesDatabase.Data
+{
+    using Microsoft.EntityFrameworkCore;
+    using P03_SalesDatabase.Data.Models;
+
+    public class SalesContext : DbContext
+    {
+        public SalesContext()
+        {
+
+        }
+
+        public SalesContext(DbContextOptions options)
+            : base(options)
+        {
+        }
+
+        //gornite ctor sa zadylgitelni, a ot doulu za wsqka tablica
+        public DbSet<Customer> Customers { get; set; }
+        public DbSet<Product> Products { get; set; }
+        public DbSet<Sale> Sales { get; set; }
+        public DbSet<Store> Stores { get; set; }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder
+                                                optionsBuilder)
+        {
+            if (!optionsBuilder.IsConfigured)
+            {
+                optionsBuilder.UseSqlServer
+                    (Configuration.ConectionString);
+            }
+            base.OnConfiguring(optionsBuilder);
+        }
+
+        protected override void OnModelCreating(ModelBuilder
+                                                modelBuilder)
+        {
+            modelBuilder.Entity<Product>(entity =>
+            {
+                //Primary Key
+                entity.HasKey(p => p.ProductId);
+
+                entity
+                    .Property(p => p.Name)
+                    .HasMaxLength(50)
+                    .IsRequired(true)
+                    .IsUnicode(true);
+
+                entity
+                    .Property(p => p.Quantity)
+                    .IsRequired(true);
+
+                entity
+                    .Property(p => p.Price)
+                    .IsRequired(true);
+                entity
+                    .Property(p => p.Description)
+                    .HasMaxLength(250)
+                    .HasDefaultValue("No description");
+                                                               
+            });
+
+            modelBuilder.Entity<Customer>(entity =>
+            {
+                entity
+                    .HasKey(p => p.CustomerId);
+
+                entity
+                    .Property(p => p.Name)
+                    .HasMaxLength(100)
+                    .IsRequired(true)
+                    .IsUnicode(true);
+
+                entity
+                    .Property(p => p.Email)
+                    .HasMaxLength(80)
+                    .IsRequired(true)
+                    .IsUnicode(false);
+
+                entity
+                    .Property(p => p.CreditCardNumber)
+                    .HasMaxLength(15)
+                    .IsUnicode(false);
+
+            });
+
+            modelBuilder.Entity<Store>(entity =>
+            {
+                entity
+                    .HasKey(k => k.StoreId);
+
+                entity
+                    .Property(p => p.Name)
+                    .HasMaxLength(80)
+                    .IsRequired(true)
+                    .IsUnicode(true);
+                
+            });
+
+            modelBuilder.Entity<Sale>(entity =>
+            {
+                entity
+                    .HasKey(k => k.SaleId);
+
+                entity
+                    .Property(p => p.Date)
+                    .IsRequired(true)
+                    .HasColumnType("DATETIME2")
+                    .HasDefaultValueSql("GETDATE()");
+
+                //Relations One to Many
+                // in this case in table with many:
+
+                entity
+                    .HasOne(s => s.Product)
+                    .WithMany(p => p.Sales)
+                    .HasForeignKey(s => s.ProductId);
+
+                entity
+                    .HasOne(s => s.Customer)
+                    .WithMany(p => p.Sales)
+                    .HasForeignKey(s => s.CustomerId);
+
+                entity
+                    .HasOne(s => s.Store)
+                    .WithMany(p => p.Sales)
+                    .HasForeignKey(s => s.StoreId);
+
+            });
+        }
+    }
+}
+
+using System.Collections.Generic;
+
+namespace P03_SalesDatabase.Data.Models
+{
+    public class Customer
+    {
+        public int CustomerId { get; set; }
+
+        public string Name { get; set; }
+
+        public string Email { get; set; }
+
+        public string CreditCardNumber { get; set; }
+
+        //List for Many - table
+
+        public ICollection<Sale> Sales { get; set; }
+    }
+}
+
+
+using System;
+
+namespace P03_SalesDatabase.Data.Models
+{
+    public class Sale
+    {
+        public int SaleId { get; set; }
+
+        public DateTime Date { get; set; }
+
+        public int ProductId { get; set; }
+        public Product Product { get; set; }
+
+        public int CustomerId { get; set; }
+        public Customer Customer { get; set; }
+
+        public int StoreId { get; set; }
+        public Store Store { get; set; }                
+    }
+}
+
+
+
+using System.Collections.Generic;
+
+namespace P03_SalesDatabase.Data.Models
+{
+    public class Product
+    {
+        public int ProductId { get; set; }
+
+        public string Name { get; set; }
+
+        public double Quantity { get; set; }
+
+        public decimal Price { get; set; }
+
+        public string Description { get; set; }
+
+        public ICollection<Sale> Sales { get; set; }
+
+    }
+}
+
+using System.Collections.Generic;
+
+namespace P03_SalesDatabase.Data.Models
+{
+    public class Store
+    {
+        public int StoreId { get; set; }
+
+        public string Name { get; set; }
+
+        public ICollection<Sale> Sales { get; set; }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
