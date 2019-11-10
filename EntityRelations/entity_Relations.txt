@@ -1,0 +1,340 @@
+Install-Package Microsoft.EntityFrameworkCore.Tools –v 2.2.0
+Install-Package Microsoft.EntityFrameworkCore.SqlServer –v 2.2.0
+Install-Package Microsoft.EntityFrameworkCore.SqlServer.Design
+
+Uninstall-Package Microsoft.EntityFrameworkCore.Tools -r
+
+
+
+
+
+using P01_StudentSystem.Data;
+
+namespace P01_StudentSystem
+{
+    public class StartUp
+    {
+        public static void Main(string[] args)
+        {
+            var db = new StudentSystemContext();
+
+            db.Database.EnsureCreated();
+        }
+    }
+}
+
+
+namespace P01_StudentSystem.Data
+{
+    public class Configuration
+    {
+        public const string ConectionString =
+            @"Server=DESKTOP-SRL2A15\SQLEXPRESS;Database=StudentSystem;Integrated Security=True;";
+
+    }
+}
+
+namespace P01_StudentSystem.Data.Models
+{
+    public enum ContentType
+    {
+        Aplication = 0,
+        Pdf= 1,
+        Zip=2
+    }
+}
+
+namespace P01_StudentSystem.Data.Models
+{
+    public enum ResourceType
+    {
+        Video=0,
+        Presentation=1,
+        Document=2,
+        Other=3
+    }
+}
+
+using System;
+using System.Collections.Generic;
+
+namespace P01_StudentSystem.Data.Models
+{
+    public class Course
+    {
+        public int CourseId { get; set; }
+
+        public string Name { get; set; }
+
+        public string Description { get; set; }
+
+        public DateTime StartDate { get; set; }
+
+        public DateTime EndDate { get; set; }
+
+        public decimal Price { get; set; }
+
+        public ICollection<StudentCourse> StudentsEnrolled { get; set; } = new HashSet<StudentCourse>();
+
+        public ICollection<Resource> Resources { get; set; } = new HashSet<Resource>();
+
+        public ICollection<Homework> HomeworkSubmissions { get; set; } = new HashSet<Homework>();
+        
+
+    }
+}
+
+
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace P01_StudentSystem.Data.Models
+{
+    public class Homework
+    {
+        public int HomeworkId { get; set; }
+
+        public string Content { get; set; }
+
+        public ContentType ContentType { get; set; }
+
+        public DateTime SubmissionTime { get; set; }
+
+        public int StudentId { get; set; }
+        public Student Student { get; set; }
+
+        public int CourseId { get; set; }
+        public Course Course { get; set; }
+    }
+}
+
+namespace P01_StudentSystem.Data.Models
+{
+    public class Resource
+    {
+        public int ResourceId { get; set; }
+
+        public string Name { get; set; }
+
+        public string Url { get; set; }
+
+        public ResourceType ResourceType { get; set; }
+
+        public int CourseId { get; set; }
+        public Course Course { get; set; }
+    }
+}
+
+using System;
+using System.Collections.Generic;
+
+namespace P01_StudentSystem.Data.Models
+{
+    public class Student
+    {
+        public int StudentId { get; set; }
+
+        public string Name { get; set; }
+
+        public string PhoneNumber { get; set; }
+
+        public DateTime RegisteredOn { get; set; }
+
+        public DateTime? Birthday { get; set; }
+
+        public ICollection<Homework> HomeworksSubmissions { get; set; } = new HashSet<Homework>();
+
+        public ICollection<StudentCourse> CourseEnrollments { get; set; } = new HashSet<StudentCourse>();
+
+    }
+}
+
+namespace P01_StudentSystem.Data.Models
+{
+    public class StudentCourse
+    {
+        public int StudentId { get; set; }
+        public Student Student { get; set; }
+
+        public int CourseId { get; set; }
+        public Course Course { get; set; }
+    }
+}
+
+
+
+
+
+using Microsoft.EntityFrameworkCore;
+using P01_StudentSystem.Data.Models;
+
+namespace P01_StudentSystem.Data
+{
+    public class StudentSystemContext : DbContext
+    {
+        public StudentSystemContext()
+        {
+        }
+
+        public StudentSystemContext(DbContextOptions options)
+            : base(options)
+        {
+        }
+
+        public DbSet<Course> Courses { get; set; }
+        public DbSet<Student> Students { get; set; }
+        public DbSet<Homework> HomeworkSubmissions { get; set; }
+        public DbSet<StudentCourse> StudentCourses { get; set; }
+        public DbSet<Resource> Resources { get; set; }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder
+                                                optionsBuilder)
+        {
+            if (!optionsBuilder.IsConfigured)
+            {
+                optionsBuilder.UseSqlServer
+                    (Configuration.ConectionString);
+            }
+            base.OnConfiguring(optionsBuilder);
+        }
+
+        protected override void OnModelCreating(ModelBuilder
+                                                modelBuilder)
+        {
+            modelBuilder.Entity<Student>(entity =>
+            {
+                //Primary Key
+                entity.HasKey(p => p.StudentId);
+
+                entity
+                    .Property(p => p.Name)
+                    .HasMaxLength(100)
+                    .IsRequired(true)
+                    .IsUnicode(true);
+
+                entity
+                    .Property(p => p.PhoneNumber)
+                    .IsUnicode(false)
+                    .IsRequired(false)
+                    .HasColumnType("CHAR(10)");
+
+                entity
+                    .Property(p => p.RegisteredOn)
+                    .IsRequired(true);
+
+                entity
+                        .Property(p => p.Birthday)
+                        .IsRequired(false);
+
+            });
+
+            modelBuilder.Entity<Course>(entity =>
+            {
+                entity.HasKey(p => p.CourseId);
+
+                entity
+                    .Property(p => p.Name)
+                    .HasMaxLength(80)
+                    .IsRequired(true)
+                    .IsUnicode(true);
+
+                entity
+                    .Property(p => p.Description)
+                    .IsRequired(false)
+                    .IsUnicode(true);                    
+
+                entity
+                .Property(p => p.StartDate)
+                .IsRequired(true);
+
+                entity
+                .Property(p => p.EndDate)
+                .IsRequired(true);
+
+                entity
+                .Property(p => p.Price)
+                .IsRequired(true);
+            });
+
+
+            modelBuilder.Entity<Homework>(entity =>
+            {
+                entity.HasKey(p => p.HomeworkId);
+
+                entity
+                .Property(p => p.Content)
+                .IsRequired(true)
+                .IsUnicode(false);
+
+                entity
+                .Property(p => p.ContentType)
+                .IsRequired(true);
+
+                entity
+                .Property(p => p.SubmissionTime)
+                .IsRequired(true);
+
+                entity
+                .HasOne(s => s.Student)
+                .WithMany(p => p.HomeworkSubmissions)
+                .HasForeignKey(s => s.StudentId)
+                .OnDelete(DeleteBehavior.Restrict); 
+
+                entity
+                .HasOne(s => s.Course)
+                .WithMany(p => p.HomeworkSubmissions)
+                .HasForeignKey(s => s.CourseId)
+                .OnDelete(DeleteBehavior.Restrict); 
+
+            });
+
+            modelBuilder.Entity<Resource>(entity =>
+            {
+                entity.HasKey(k => k.ResourceId);
+
+                entity
+                .Property(p => p.Name)
+                .HasMaxLength(50)
+                .IsUnicode(true)
+                .IsRequired(true);
+
+                entity
+                .Property(p => p.Url)
+                .IsUnicode(false)
+                .IsRequired(true);
+
+                entity
+                .Property(p => p.ResourceType)
+                .IsRequired(true);
+
+                entity
+                .HasOne(s => s.Course)
+                .WithMany(p => p.Resources)
+                .HasForeignKey(s => s.CourseId)
+                .OnDelete(DeleteBehavior.Restrict); 
+
+            });
+
+            modelBuilder.Entity<StudentCourse>(entity =>
+            {
+                entity.HasKey(k => new { k.StudentId, k.CourseId });
+
+                entity
+                .HasOne(s => s.Student)
+                .WithMany(p => p.CourseEnrollments)
+                .HasForeignKey(s => s.StudentId)
+                .OnDelete(DeleteBehavior.Restrict); ;
+
+                entity
+                .HasOne(s => s.Course)
+                .WithMany(p => p.StudentsEnrolled)
+                .HasForeignKey(s => s.CourseId)
+                .OnDelete(DeleteBehavior.Restrict); ;
+            });
+
+        }
+    }
+}
+
+
