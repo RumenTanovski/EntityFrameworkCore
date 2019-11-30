@@ -1,0 +1,537 @@
+using System;
+using System.IO;
+using System.Xml.Serialization;
+
+using CarDealer.Data;
+using CarDealer.Models;
+using CarDealer.Dtos.Import;
+
+using AutoMapper;
+using System.Linq;
+using System.Collections.Generic;
+using System.Text;
+using System.Xml;
+using CarDealer.Dtos.Export;
+
+namespace CarDealer
+{
+    public class StartUp
+    {
+        public static void Main(string[] args)
+        {
+            // using (var db = new CarDealerContext())
+            // {
+            //     db.Database.EnsureDeleted();
+            //     db.Database.EnsureCreated();
+            // }
+
+            Mapper.Initialize(cfg =>
+                              {
+                                  cfg.AddProfile<CarDealerProfile>();
+                              });
+
+            using (var db = new CarDealerContext())
+            {
+                //var inputXml = File.ReadAllText("./../../../Datasets/suppliers.xml");
+                //var inputXml = File.ReadAllText("./../../../Datasets/cars.xml");
+                //var inputXml = File.ReadAllText("./../../../Datasets/customers.xml");
+                //var inputXml = File.ReadAllText("./../../../Datasets/sales.xml");
+                //var result = ImportSales(db, inputXml);
+                //var result = GetCarsWithDistance(db);
+                //var result = GetCarsFromMakeBmw(db);
+                //var result = GetLocalSuppliers(db);
+                //var result = GetTotalSalesByCustomer(db);
+
+                var result = GetSalesWithAppliedDiscount(db);
+                Console.WriteLine(result);
+
+            }
+        }
+
+        //    Query 9. Import Suppliers
+        public static string ImportSuppliers(CarDealerContext context, string inputXml)
+        {
+            var xmlSerializer =
+                new XmlSerializer(typeof(ImportSupplierDto[]),
+                new XmlRootAttribute("Suppliers"));
+
+            ImportSupplierDto[] supplierDtos;
+
+            using (var reader = new StringReader(inputXml))
+            {
+                supplierDtos = (ImportSupplierDto[])
+                   xmlSerializer.Deserialize(reader);
+            }
+
+            var suppliers = Mapper.Map<Supplier[]>(supplierDtos);
+
+            context.Suppliers.AddRange(suppliers);
+            context.SaveChanges();
+
+            return $"Successfully imported {suppliers.Length}";
+        }
+
+        //Query 10. Import Parts
+        public static string ImportParts(CarDealerContext context, string inputXml)
+        {
+            //syzdawane na prazen serializator
+            var xmlSerializer =
+                new XmlSerializer(typeof(ImportPartDto[]),
+                new XmlRootAttribute("Parts"));
+
+            //popylvane na masiva s vhoda ot stringa(vhoden fail)
+            var partsDTO = (ImportPartDto[])xmlSerializer
+                .Deserialize(new StringReader(inputXml));
+
+            //filtrirane na popylneniqt masiv
+            var parts = new List<Part>();
+
+            var suppliers = context.Suppliers.ToList();
+
+            foreach (var partDTO in partsDTO)
+            {
+                if (suppliers.Any(x => x.Id == partDTO.SupplierId))
+                {
+                    var part = Mapper.Map<Part>(partDTO);
+                    parts.Add(part);
+                }
+            }
+
+            //zapis SQL bazata
+            context.Parts.AddRange(parts);
+            context.SaveChanges();
+
+            return $"Successfully imported {parts.Count()}";
+        }
+
+        //Query 11. Import Cars
+        public static string ImportCars(CarDealerContext context, string inputXml)
+        {
+            //syzdawane na prazen serializator
+            var xmlSerializer =
+                new XmlSerializer(typeof(ImportCarDTO[]),
+                new XmlRootAttribute("Cars"));
+
+            //popylvane na masiva s vhoda ot stringa(vhoden fail)
+            var carsDTO = (ImportCarDTO[])xmlSerializer.Deserialize(new StringReader(inputXml));
+
+            //filtrirane na popylneniqt masiv
+            var cars = new List<Car>();
+
+            var partCars = new List<PartCar>();
+
+            var parts = context.Parts.ToList();
+
+            foreach (var car in carsDTO)
+            {
+
+                var carCurent = Mapper.Map<Car>(car);
+                cars.Add(carCurent);
+
+                foreach (var partId in car.PartIds.Select(x => x.Id).Distinct())
+                {
+                    if (parts.Any(x => x.Id == partId))
+                    {
+                        var partCar = new PartCar()
+                        {
+                            Car = carCurent,
+                            PartId = partId
+                        };
+                        partCars.Add(partCar);
+                    }
+                }
+            }
+
+            //zapis SQL bazata
+            context.Cars.AddRange(cars);
+            context.SaveChanges();
+
+            return $"Successfully imported {cars.Count()}";
+        }
+
+        //Query 12. Import Customers
+        public static string ImportCustomers(CarDealerContext context, string inputXml)
+        {
+            var xmlSerializer = new XmlSerializer(typeof(ImportCustomerDto[]),
+                                new XmlRootAttribute("Customers"));
+
+            var customersDto = (ImportCustomerDto[])xmlSerializer
+                .Deserialize(new StringReader(inputXml));
+
+            var customers = new List<Customer>();
+
+            foreach (var customDto in customersDto)
+            {
+                var custom = Mapper.Map<Customer>(customDto);
+                customers.Add(custom);
+            }
+
+            context.Customers.AddRange(customers);
+            context.SaveChanges();
+
+            return $"Successfully imported {customers.Count()}"; ;
+        }
+
+        //Query 13. Import Sales
+        public static string ImportSales(CarDealerContext context, string inputXml)
+        {
+            var xmlSerializer = new XmlSerializer(typeof(ImportSaleDto[]),
+                                new XmlRootAttribute("Sales"));
+
+            var salesDto = (ImportSaleDto[])xmlSerializer
+                .Deserialize(new StringReader(inputXml));
+
+            var sales = new List<Sale>();
+
+            var cars = context.Cars.ToList();
+
+            foreach (var saleDto in salesDto)
+            {
+
+                if (cars.Any(i => i.Id == saleDto.CarId))
+                {
+                    var sale = Mapper.Map<Sale>(saleDto);
+                    sales.Add(sale);
+                }
+            }
+
+            context.Sales.AddRange(sales);
+
+            context.SaveChanges();
+
+            return $"Successfully imported {sales.Count()}";
+
+        }
+
+        //   4. Query and Export Data
+        //    Query 13. Cars With Distance
+        public static string GetCarsWithDistance(CarDealerContext context)
+        {
+
+            var cars = context.Cars
+                .Where(c => c.TravelledDistance > 2000000)
+                .OrderBy(c => c.Make)
+                .ThenBy(c => c.Model)
+                .Take(10)
+                .Select(c => new ExportCarWithDistanceDto
+                {
+                    Make = c.Make,
+                    Model = c.Model,
+                    TravelledDistance = c.TravelledDistance
+                })
+                .ToArray();
+
+            var xmlSerializer = new XmlSerializer(typeof(ExportCarWithDistanceDto[]),
+                                new XmlRootAttribute("cars"));
+
+            var sb = new StringBuilder();
+
+            var namespaces = new XmlSerializerNamespaces(new[] {
+                XmlQualifiedName.Empty
+            });
+
+            xmlSerializer.Serialize(new StringWriter(sb), cars, namespaces);
+            return sb.ToString();
+        }
+
+        //Query 14. Cars from make BMW
+        public static string GetCarsFromMakeBmw(CarDealerContext context)
+        {
+            var carBMW = context.Cars
+                .Where(c => c.Make == "BMW")
+                .OrderBy(c => c.Model)
+                .ThenByDescending(c => c.TravelledDistance)
+                .Select(c => new ExportCarBMWDto
+                {
+                    Id = c.Id,
+                    Model = c.Model,
+                    TravelledDistance = c.TravelledDistance
+                })
+                .ToArray();
+
+            var xmlSerializer = new XmlSerializer(typeof(ExportCarBMWDto[]),
+                                new XmlRootAttribute("cars"));
+
+            var sb = new StringBuilder();
+
+            var namespaces = new XmlSerializerNamespaces(new[] {
+                XmlQualifiedName.Empty
+            });
+
+            xmlSerializer.Serialize(new StringWriter(sb), carBMW, namespaces);
+
+            return sb.ToString().TrimEnd();
+        }
+
+        //Query 15. Local Suppliers
+        public static string GetLocalSuppliers(CarDealerContext context)
+        {
+            var suppliers = context.Suppliers
+                .Where(s => s.IsImporter == false)
+                .Select(s => new ExportSuppliersDto
+                {
+                    Id = s.Id,
+                    Name = s.Name,
+                    PartsCount = s.Parts.Count()
+                })
+                .ToArray();
+
+            var xmlSerializer = new XmlSerializer(typeof(ExportSuppliersDto[]),
+                                new XmlRootAttribute("suppliers"));
+
+            var sb = new StringBuilder();
+
+            var namespaces = new XmlSerializerNamespaces(new[] {
+                XmlQualifiedName.Empty
+            });
+
+            xmlSerializer.Serialize(new StringWriter(sb), suppliers, namespaces);
+
+            return sb.ToString().TrimEnd();
+        }
+
+        //Query 16. Cars with Their List of Parts
+        public static string GetCarsWithTheirListOfParts(CarDealerContext context)
+        {
+            var carsParts = context.Cars
+                .OrderByDescending(c => c.TravelledDistance)
+                .ThenBy(c => c.Model)
+                .Take(5)
+                .Select(c => new ExportCarWithPartsDto
+                {
+                    Make = c.Make,
+                    Model = c.Model,
+                    TravelledDistance = c.TravelledDistance,
+                    Parts = c.PartCars.Select(p => new ExportListOfPartsDto
+                    {
+                        Name = p.Part.Name,
+                        Price = p.Part.Price
+                    })
+                    .OrderByDescending(p => p.Price)
+                    .ToArray()
+                })
+                .ToArray();
+
+            var xmlSerializer = new XmlSerializer(typeof(ExportCarWithPartsDto[]),
+                                new XmlRootAttribute("cars"));
+
+            var sb = new StringBuilder();
+
+            var namespaces = new XmlSerializerNamespaces(new[] {
+                XmlQualifiedName.Empty
+            });
+
+            xmlSerializer.Serialize(new StringWriter(sb), carsParts, namespaces);
+
+            return sb.ToString().TrimEnd();
+        }
+
+        //Query 17. Total Sales by Customer
+        public static string GetTotalSalesByCustomer(CarDealerContext context)
+        {
+            var sales = context.Customers
+                .Where(c => c.Sales.Count() >= 1)
+                .Select(c => new SalesByCustomersDto
+                {
+                    Name = c.Name,
+                    BoughtCars = c.Sales.Count(),
+                    SpentMoney = c.Sales.Sum(s => s.Car.PartCars.Sum(p => p.Part.Price))
+                    //SpentMoney = c.Sales.SelectMany(s => s.Car.PartCars).Sum(cp => cp.Part.Price)
+                })
+                .OrderByDescending(c => c.SpentMoney)
+                .ToArray();
+
+            var xmlSerializer = new XmlSerializer(typeof(SalesByCustomersDto[]),
+                               new XmlRootAttribute("customers"));
+
+            var sb = new StringBuilder();
+
+            var namespaces = new XmlSerializerNamespaces(new[]
+            {
+                XmlQualifiedName.Empty
+            });
+
+            xmlSerializer.Serialize(new StringWriter(sb), sales, namespaces);
+
+            return sb.ToString().TrimEnd();
+        }
+
+        //Query 18. Sales with Applied Discount
+        public static string GetSalesWithAppliedDiscount(CarDealerContext context)
+        {
+            var sales = context.Sales
+                .Select(s => new ExportSalesWithDiscountDto
+                {
+                    CarDiscount = new ExportCarWithDiscount
+                    {
+                        Make = s.Car.Make,
+                        Model = s.Car.Model,
+                        TravelledDistance = s.Car.TravelledDistance
+                    },
+                    Discount = s.Discount,
+                    Name = s.Customer.Name,
+                    Price = s.Car.PartCars.Sum(p => p.Part.Price),
+                    PriceWithDiscount = s.Car.PartCars.Sum(p => p.Part.Price)
+                   - s.Car.PartCars.Sum(p => p.Part.Price) * s.Discount / 100
+                })
+                .ToArray();
+
+            var xmlSerializer = new XmlSerializer(typeof(ExportSalesWithDiscountDto[]),
+                              new XmlRootAttribute("sales"));
+
+            var sb = new StringBuilder();
+
+            var namespaces = new XmlSerializerNamespaces(new[]
+            {
+                XmlQualifiedName.Empty
+            });
+
+            xmlSerializer.Serialize(new StringWriter(sb), sales, namespaces);
+
+            return sb.ToString().TrimEnd();
+
+        }
+    }
+}
+
+using CarDealer.Models;
+using CarDealer.Dtos.Import;
+
+using AutoMapper;
+
+namespace CarDealer
+{
+    public class CarDealerProfile : Profile
+    {
+        public CarDealerProfile()
+        {
+            this.CreateMap<ImportSupplierDto, Supplier>();
+            this.CreateMap<ImportPartDto, Part>();
+            this.CreateMap<ImportCarDTO, Car>();
+            this.CreateMap<ImportCustomerDto, Customer>();
+            this.CreateMap<ImportSaleDto, Sale>();
+
+        }
+    }
+}
+
+Import
+using System.Collections.Generic;
+using System.Xml.Serialization;
+
+namespace CarDealer.Dtos.Import
+{
+    [XmlType("Car")]
+    public class ImportCarDTO
+    {
+        [XmlElement("make")]
+        public string Make { get; set; }
+        
+        [XmlElement("model")]
+        public string Model { get; set; }
+
+        [XmlElement("TraveledDistance")]
+        public long TravelledDistance { get; set; }
+
+        [XmlArray("parts")]
+        [XmlArrayItem("partId")]
+        public List<PartIdDTO> PartIds { get; set; }
+    }
+
+    public class PartIdDTO
+    {
+        [XmlAttribute("id")]
+        public int Id { get; set; }
+    }
+}
+
+Export
+using System.Xml.Serialization;
+
+namespace CarDealer.Dtos.Export
+{
+    [XmlType("car")]
+    public class ExportCarWithPartsDto
+    {
+        [XmlAttribute(AttributeName = "make")]
+        public string Make { get; set; }
+
+        [XmlAttribute(AttributeName = "model")]
+        public string Model { get; set; }
+
+        [XmlAttribute(AttributeName = "travelled-distance")]
+        public long TravelledDistance { get; set; }
+ 
+        [XmlArray(ElementName = "parts")]       
+        public ExportListOfPartsDto[] Parts { get; set; }
+               
+    }
+}
+
+using System.Xml.Serialization;
+
+namespace CarDealer.Dtos.Export
+{
+    [XmlType("part")]
+    public class ExportListOfPartsDto
+    {
+        [XmlAttribute(AttributeName="name")]
+        public string Name { get; set; }
+
+        [XmlAttribute(AttributeName = "price")]
+        public decimal Price { get; set; }
+    }
+}
+
+
+
+
+
+
+using System.Xml.Serialization;
+
+namespace CarDealer.Dtos.Export
+{
+    [XmlType("sale")]
+    public class ExportSalesWithDiscountDto
+    {
+        [XmlElement(ElementName ="car")]
+        public ExportCarWithDiscount CarDiscount { get; set; }
+
+        [XmlElement(ElementName ="discount")]
+        public decimal Discount { get; set; }
+
+        [XmlElement(ElementName ="customer-name")]
+        public string Name { get; set; }
+
+        [XmlElement(ElementName ="price")]
+        public decimal Price { get; set; }
+
+        [XmlElement(ElementName ="price-with-discount")]
+        public decimal PriceWithDiscount { get; set; }
+
+    }
+}
+
+using System.Xml.Serialization;
+
+namespace CarDealer.Dtos.Export
+{
+   
+    public class ExportCarWithDiscount
+    {
+        [XmlAttribute(AttributeName = "make")]
+        public string Make { get; set; }
+
+        [XmlAttribute(AttributeName = "model")]
+        public string Model { get; set; }
+
+        [XmlAttribute(AttributeName = "travelled-distance")]
+        public long TravelledDistance { get; set; }
+
+    }
+}
+
+
+
+
