@@ -1,0 +1,333 @@
+
+the-c-programming
+
+ConectionString =
+            @"Server=DESKTOP-SRL2A15\SQLEXPRESS;
+
+HasColumnType("NVARCHAR(MAX)")
+HasMaxLength(10).IsFixedLength()
+ .OnDelete(DeleteBehavior.Restrict);
+.HasColumnType("CHAR(10)")
+
+builder.Entity<SongPerformer>()
+                .HasKey(op => new { op.PrisonerId, op.OfficerId });
+
+[StringLength(20,MinimumLength=3)]	
+[Required]
+
+		[Range(0.01, double.MaxValue)]
+        public decimal Price { get; set; }
+
+public decimal Price
+            => this.Songs.Sum(p => p.Price);
+	
+public TimeSpan Duration { get; set; }
+
+public ICollection<Resource> Resources { get; set; } = new List<Resource>();
+
+.OnDelete(DeleteBehavior.Restrict);
+
+public DateTime? Birthday { get; set; } - че не е задължително!!!
+
+	
+ if (IsValid(movieDto)&& !movies.Any(t => t.Title == movieDto.Title))
+	 
+if (!IsValid(gameDto) || !gameDto.Tags.All(IsValid))
+				{
+					sb.AppendLine("Invalid Data");
+					continue;
+				}
+
+sb.AppendLine(string.Format(SuccessfulImportMovie,dto.Title,dto.Genre, dto.Rating.ToString("F2")));
+
+var dateTimeRes = projection.DateTime.ToString("MM/dd/yyyy");
+
+.Where(p => p.ReleaseDate.Value.Year != year)
+
+.Where(w=> w.BookCategories
+			.Any (bc => categories.Contains(bc.Category.ToString().ToLower())))
+	
+String to DateTime withaut Time	
+ DateTime releaseDate = DateTime.ParseExact(date, "dd-MM-yyyy", null);
+
+var dateTimeRes = projection.DateTime.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture);
+
+SpentTime = TimeSpan.FromSeconds(
+                        c.Tickets.Sum(t => t.Projection.Movie.Duration.TotalSeconds))
+                        .ToString(@"hh\:mm\:ss")
+
+return String.Join(Environment.NewLine,
+                books.Select(b => $"{b.Title}"));
+
+.Where(p => p.Title.ToLower().Contains(input.ToLower()))
+.Where(b => b.Author.LastName.ToLower().StartsWith(input.ToLower()))
+
+GROUP BY:
+var books = context.Authors
+                .Select(a => new
+                {
+                    FullName = a.FirstName + " " + a.LastName,
+                    NumberCopy = a.Books.Select(b => b.Copies).Sum()
+                })
+                .OrderByDescending(a => a.NumberCopy)
+                .ToList();
+
+GROUP BY:
+var categories = context.Categories
+                .Select(c => new
+                {
+                    c.Name,
+                    Bookss = c.CategoryBooks
+                    .Select(cb =>new
+                        {   Titlee=cb.Book.Title, 
+                            ReleaseDatee=cb.Book.ReleaseDate 
+                        })
+                    .OrderByDescending(cb => cb.ReleaseDatee)
+                    .Take(3)
+                    .ToList()
+                })
+                .OrderBy(c => c.Name)
+                .ToList();
+
+
+IncreasePrices
+context.Books
+                .Where(w => w.ReleaseDate.Value.Year < beforeThisYear)                
+                .ToList()
+                .ForEach(b=> b.Price+=5);
+Changes
+		public static void IncreasePrices(BookShopContext context)
+        {
+            int beforeThisYear = 2010;
+
+            context.Books
+                .Where(w => w.ReleaseDate.Value.Year < beforeThisYear)
+                .ToList()
+                .ForEach(b => b.Price += 5);
+
+            context.SaveChanges();
+        }
+Delete records
+        public static int RemoveBooks(BookShopContext context)
+        {
+            var booksForDelete = context.Books
+                .Where(b => b.Copies < 4200)
+                .ToList();
+
+            context.RemoveRange(booksForDelete);
+
+            context.SaveChanges();
+
+            return booksForDelete.Count();
+        }
+		
+		//ex. “ABCD-EFGH-1J3L”
+		[Required]
+        [RegularExpression(@"[A-Z\d]{4}-[A-Z\d]{4}-[A-Z\d]{4}$")]
+        public string ProductKey { get; set; }		
+		
+		ReleaseDate = DateTime.ParseExact(gameDto.ReleaseDate, "yyyy-MM-dd",
+                        CultureInfo.InvariantCulture)
+		
+		
+		private static bool IsValid(ImportGamesDto gameDto)
+        {
+            var validationContext = new ValidationContext(gameDto);
+            var validationResults = new List<ValidationResult>();
+
+            var isValid = Validator.TryValidateObject(gameDto, validationContext,
+                validationResults, true);
+
+            return isValid;
+        }
+		
+		//take if has value take it, else take null
+		private static Developer GetDeveloper(VaporStoreDbContext context, string developerDto)
+        {
+            var developer = context.Developers.FirstOrDefault(x => x.Name == developerDto);
+
+            if (developer==null)
+            {
+                developer = new Developer
+                {
+                    Name = developerDto
+                };
+                context.Developers.Add(developer);
+                context.SaveChanges();
+            }
+            return developer;
+        }
+		
+	 private static bool IsValid(this object obj)
+        {
+            var validationContext = new ValidationContext(obj);
+            var validationResults = new List<ValidationResult>();
+
+            var isValid = Validator.TryValidateObject(obj, validationContext, validationResults, true);
+
+            return isValid;
+        }
+		
+	private static bool IsvalidHallId(CinemaContext context, int hallId)
+        {
+            return context.Halls.Any(h => h.Id == hallId);
+        }	
+		
+var movies = context.Movies
+                .Where(m => m.Rating >= rating
+                    && m.Projections.Any(p => p.Tickets.Count > 0))
+                .OrderByDescending(m=> m.Rating)
+                .ThenByDescending(m=> m.Projections.Sum(p => p.Tickets.Sum(t => t.Price)))
+                .Select(m => new MovieExportDto
+                {
+                    MovieName = m.Title,
+                    Rating = m.Rating.ToString("F2"),
+                    TotalIncomes = m.Projections.Sum(p => p.Tickets.Sum(t => t.Price)).ToString("F2"),
+                    Customers = m.Projections
+                        .SelectMany(p => p.Tickets)
+                            .Select(c => new CustomerMovieExportDto
+                            {
+                                FirstName = c.Customer.FirstName,
+                                LastName = c.Customer.LastName,
+                                Balance = c.Customer.Balance.ToString("F2")
+                            })
+                            .OrderByDescending(c => c.Balance)
+                            .ThenBy(c => c.FirstName)
+                            .ThenBy(c => c.LastName)
+                            .ToList()   
+                })
+                .Take(10)
+                .ToList();	
+
+/////////////////////////////////////////////////////////////
+
+
+string message = producer.PhoneNumber == null
+                    ? string.Format(SuccessfullyImportedProducerWithNoPhone, producer.Name, producer.Albums.Count)
+                    : string.Format(SuccessfullyImportedProducerWithPhone, producer.Name, producer.PhoneNumber, producer.Albums.Count);				
+					
+					
+DueDate = string.IsNullOrEmpty(projectDto.DueDate) ?
+                        (DateTime?)null
+                        : DateTime.ParseExact(
+                        projectDto.DueDate, @"dd/MM/yyyy", CultureInfo.InvariantCulture)					
+						
+						
+DateTime taskOpenDate = DateTime.ParseExact(
+                            taskDto.OpenDate, @"dd/MM/yyyy", CultureInfo.InvariantCulture);						
+						
+			if (taskOpenDate < projectOpenDate || taskDueDate > projectDueDate)
+                    {
+                        sb.AppendLine(ErrorMessage);
+                        continue;
+                    }			
+					
+ ExecutionType = (ExecutionType)
+                            Enum.ToObject(typeof(ExecutionType), taskDto.ExecutionType),					
+
+///////////////////////////////////////////////////////////////
+						
+		Task task = new Task
+                    {
+                        Name = taskDto.Name,
+                        OpenDate = taskOpenDate,
+                        DueDate = taskDueDate,
+                        ExecutionType = (ExecutionType)
+                            Enum.ToObject(typeof(ExecutionType), taskDto.ExecutionType),
+                        LabelType = (LabelType)
+                            Enum.ToObject(typeof(LabelType), taskDto.LabelType),
+                        Project = project		// i towa e vajno -tabl with FK!
+                    };				
+					project.Tasks.Add(task);    //!!! mnogo vajno-tabl with ICollection!!	
+						
+				}
+				projects.Add(project);
+			}
+		context.Projects.AddRange(projects);
+            context.SaveChanges();
+
+            return sb.ToString().TrimEnd();	
+	}					
+	
+///////////////////////////////////////////////////////////////////////
+
+					if (context.Tasks.Find(taskId) == null)
+                    {
+                        sb.AppendLine(ErrorMessage);
+                        continue;
+                    }
+				employee.EmployeesTasks.Add(new EmployeeTask { TaskId = taskId });
+			}					
+			employees.Add(employee);					
+						
+	context.Employees.AddRange(employees);
+    context.SaveChanges();		
+
+//////////////////////////////////////////////////////////////////////
+
+public class ImportEmployeeDto
+    {
+        [MinLength(3), MaxLength(40), RegularExpression(@"[A-Za-z0-9]+")]
+        [JsonProperty("Username")]
+        public string Username { get; set; }
+
+        [Required, EmailAddress]
+        [JsonProperty("Email")]
+        public string Email { get; set; }
+
+        [RegularExpression(@"^[0-9]{3}-[0-9]{3}-[0-9]{4}$"), Required]
+        [JsonProperty("Phone")]
+        public string Phone { get; set; }
+
+        [JsonProperty("Tasks")]
+        public List<int> Tasks { get; set; }
+    }
+	
+///////////////////////////////////////////////////////////////////////	
+	
+	foreach (var taskId in employeeDto.Tasks.Distinct())
+                {
+                    if (context.Tasks.Find(taskId) == null)
+                    {
+                        sb.AppendLine(ErrorMessage);
+                        continue;
+                    }
+
+                    employee.EmployeesTasks.Add(new EmployeeTask { TaskId = taskId });
+                }
+	
+//////////////////////////////////////////////////////////////////////
+		.Select(e => new ExportEmployeeDto
+                {
+                    Username = e.Username,
+                    Tasks = e.EmployeesTasks
+                    .Where(t => t.Task.OpenDate >= date)
+                    .Select(t => new ExportTaskDto
+                    {
+                        TaskName = t.Task.Name,
+                        LabelType = t.Task.LabelType.ToString(),
+                        ExecutionType = t.Task.ExecutionType.ToString(),
+                        DueDate = t.Task.DueDate.ToString(@"d", CultureInfo.InvariantCulture),
+                        OpenDate = t.Task.OpenDate.ToString(@"d", CultureInfo.InvariantCulture)
+                    })
+
+////////////////////////////////////////////////////////////
+
+  bool isValidExecutionType = Enum.IsDefined(typeof(ExecutionType),
+  
+  /////////////////////////////////////////////////////////////////
+
+
+
+
+
+	
+	
+	
+	
+	
+	
+	
+
+
+	

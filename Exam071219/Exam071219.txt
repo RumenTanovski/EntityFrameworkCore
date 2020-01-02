@@ -1,0 +1,590 @@
+
+namespace TeisterMask.Data.Models.Enums
+{
+    public enum ExecutionType
+    {
+        ProductBacklog = 0,
+        SprintBacklog = 1,
+        InProgress = 2,
+        Finished = 3
+    }
+}
+
+namespace TeisterMask.Data.Models.Enums
+{
+    public enum LabelType
+    {
+        Priority = 0,
+        CSharpAdvanced = 1,
+        JavaAdvanced = 2,
+        EntityFramework = 3,
+        Hibernate = 4
+    }
+}
+
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+
+namespace TeisterMask.Data.Models
+{
+    public class Employee
+    {
+        [Key]
+        public int Id { get; set; }
+
+        [Required]
+        [StringLength(40, MinimumLength =3)]
+        [RegularExpression(@"^[a-zA-Z\d]+$")]
+        public string  Username{ get; set; }
+
+        [Required]
+        [EmailAddress]
+        public string Email  { get; set; }
+        
+        [Required]
+        [RegularExpression("^[0-9]{3}-[0-9]{3}-[0-9]{4}$")]
+        public string Phone { get; set; }
+
+        public ICollection<EmployeeTask> EmployeesTasks { get; set; }
+        = new HashSet<EmployeeTask>();
+                
+    }
+}
+
+using System.ComponentModel.DataAnnotations;
+
+namespace TeisterMask.Data.Models
+{
+    public class EmployeeTask
+    {
+        public int EmployeeId { get; set; }
+        public Employee Employee { get; set; }
+        
+        public int TaskId { get; set; }
+        public Task Task { get; set; }
+    }
+}
+
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Text;
+
+namespace TeisterMask.Data.Models
+{
+    public class Project
+    {
+        [Key]
+        public int Id { get; set; }
+
+        [Required]
+        [StringLength(40, MinimumLength = 2)]
+        public string Name { get; set; }
+
+        [Required]
+        public DateTime OpenDate { get; set; }
+
+        public DateTime? DueDate { get; set; }
+
+        public ICollection<Task> Tasks { get; set; }
+        = new HashSet<Task>();       
+    }
+}
+
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using TeisterMask.Data.Models.Enums;
+
+namespace TeisterMask.Data.Models
+{
+    public class Task
+    {
+        [Key]
+        public int Id { get; set; }
+
+        [Required]
+        [StringLength(40, MinimumLength = 2)]
+        public string Name { get; set; }
+
+        [Required]
+        public DateTime OpenDate { get; set; }
+
+        [Required]
+        public DateTime DueDate { get; set; }
+
+        [Required]
+        public ExecutionType ExecutionType { get; set; }
+
+        [Required]
+        public LabelType LabelType { get; set; }
+
+      
+        [Required] 
+        public int ProjectId { get; set; }
+        public Project  Project{ get; set; }
+
+        public ICollection<EmployeeTask> EmployeesTasks { get; set; }
+        = new HashSet<EmployeeTask>();
+    }           
+}
+
+namespace TeisterMask.Data
+{
+    using Microsoft.EntityFrameworkCore;
+    using TeisterMask.Data.Models;
+
+    public class TeisterMaskContext : DbContext
+    {
+        public TeisterMaskContext() { }
+
+        public TeisterMaskContext(DbContextOptions options)
+            : base(options) { }
+
+        public DbSet<Employee> Employees  { get; set; }
+        public DbSet<EmployeeTask> EmployeesTasks  { get; set; }
+        public DbSet<Project> Projects { get; set; }
+        public DbSet<Task> Tasks  { get; set; }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            if (!optionsBuilder.IsConfigured)
+            {
+                optionsBuilder
+                    .UseSqlServer(Configuration.ConnectionString);
+            }
+        }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<EmployeeTask>()
+                .HasKey(et=> new { et.EmployeeId, et.TaskId});
+        }
+    }
+}
+
+namespace TeisterMask.DataProcessor
+{
+    using System;
+    using System.Collections.Generic;
+    using System.ComponentModel.DataAnnotations;
+
+    using ValidationContext = System.ComponentModel.DataAnnotations.ValidationContext;
+
+    using Data;
+    using System.Xml.Serialization;
+    using TeisterMask.DataProcessor.ImportDto;
+    using System.IO;
+    using System.Text;
+    using System.Linq;
+    using System.Globalization;
+    using TeisterMask.Data.Models;
+    using Newtonsoft.Json;
+    using TeisterMask.Data.Models.Enums;
+
+    public class Deserializer
+    {
+        private const string ErrorMessage = "Invalid data!";
+
+        private const string SuccessfullyImportedProject
+            = "Successfully imported project - {0} with {1} tasks.";
+
+        private const string SuccessfullyImportedEmployee
+            = "Successfully imported employee - {0} with {1} tasks.";
+
+        public static string ImportProjects(TeisterMaskContext context, string xmlString)
+        {
+            var xmlSerializer = new XmlSerializer(typeof(ImportProjectDto[]),
+                           new XmlRootAttribute("Projects"));
+
+            var objects = (ImportProjectDto[])xmlSerializer
+                .Deserialize(new StringReader(xmlString));
+
+            var sb = new StringBuilder();
+
+            var projects = new List<Project>();
+
+            foreach (var dto in objects)
+            {
+                if (!IsValid(dto))
+                {
+                    sb.AppendLine(ErrorMessage);
+                    continue;
+                }
+                                
+                var project = new Project
+                {
+                    Name = dto.Name,
+                    OpenDate = DateTime.ParseExact(dto.OpenDate, "dd/MM/yyyy",
+                             CultureInfo.InvariantCulture),
+                    DueDate = string.IsNullOrEmpty(dto.DueDate) ?
+                        (DateTime?)null
+                        : DateTime.ParseExact(
+                        dto.DueDate, @"dd/MM/yyyy", CultureInfo.InvariantCulture)
+                };
+                
+                var tasks = new List<Task>();
+
+				//bool isValidExecutionType = Enum.IsDefined(typeof(ExecutionType), taskDto.ExecutionType);
+                foreach (var taskDto in dto.Tasks)
+                {
+                    var taskOpenDate = DateTime.ParseExact(taskDto.OpenDate, "dd/MM/yyyy",
+                                 CultureInfo.InvariantCulture);
+                    var taskDueDate = DateTime.ParseExact(taskDto.DueDate, "dd/MM/yyyy",
+                                 CultureInfo.InvariantCulture);
+                    
+                    if (!IsValid(taskDto))
+                    {
+                        sb.AppendLine(ErrorMessage);
+                        continue;
+                    }
+
+                    if (taskOpenDate < project.OpenDate || taskDueDate > project.DueDate)
+                    {
+                        sb.AppendLine(ErrorMessage);
+                        continue;
+                    }
+                    var task = new Task
+                    {
+                        Name = taskDto.Name,
+                        OpenDate = taskOpenDate,
+                        DueDate = taskDueDate,
+                        ExecutionType = (ExecutionType)
+                            Enum.ToObject(typeof(ExecutionType), taskDto.ExecutionType),
+                        LabelType = (LabelType)Enum.ToObject(typeof(ExecutionType), taskDto.LabelType),
+                        Project = project
+                    };
+                    tasks.Add(task);
+                    project.Tasks.Add(task);
+
+                }
+
+                projects.Add(project);
+
+                sb.AppendLine(string.Format(SuccessfullyImportedProject, dto.Name, tasks.Count));
+
+            }
+
+            context.Projects.AddRange(projects);
+            context.SaveChanges();
+
+            var result = sb.ToString().TrimEnd();
+
+            return result;
+
+        }
+
+        public static string ImportEmployees(TeisterMaskContext context, string jsonString)
+        {
+            var employeesDto = JsonConvert.DeserializeObject<ImportEmployeeDto[]>(jsonString);
+
+            var sb = new StringBuilder();
+
+            var employees = new List<Employee>();
+
+            foreach (var dto in employeesDto)
+            {
+                if (!IsValid(dto))
+                {
+                    sb.AppendLine(ErrorMessage);
+                    continue;
+                }
+
+                var emplo = new Employee
+                {
+                    Username = dto.Username,
+                    Email = dto.Email,
+                    Phone = dto.Phone
+                };
+
+                foreach (var taskId in dto.Tasks.Distinct())
+                {
+                    if (context.Tasks.Find(taskId) == null)
+                    {
+                        sb.AppendLine(ErrorMessage);
+                        continue;
+                    }
+
+                    emplo.EmployeesTasks
+                        .Add(new EmployeeTask { TaskId = taskId });
+                }
+                employees.Add(emplo);
+                sb.AppendLine(string.Format(SuccessfullyImportedEmployee,
+                    emplo.Username,
+                    emplo.EmployeesTasks.Count));
+
+            }
+
+            context.Employees.AddRange(employees);
+            context.SaveChanges();
+
+            var result = sb.ToString().TrimEnd();
+
+            return result;
+        }
+
+        private static bool IsValid(object dto)
+        {
+            var validationContext = new ValidationContext(dto);
+            var validationResult = new List<ValidationResult>();
+
+            return Validator.TryValidateObject(dto, validationContext, validationResult, true);
+        }
+    }
+}
+
+using System.ComponentModel.DataAnnotations;
+using System.Xml.Serialization;
+
+namespace TeisterMask.DataProcessor.ImportDto
+{
+    [XmlType("Project")]
+    public class ImportProjectDto
+    {
+        [Required]
+        [StringLength(40, MinimumLength = 2)]
+        [XmlElement("Name")]
+        public string Name { get; set; }
+
+        [Required]
+        [XmlElement("OpenDate")]
+        public string OpenDate { get; set; }
+
+        [XmlElement("DueDate")]
+        public string DueDate { get; set; }
+
+        [XmlArray("Tasks")]
+        public ImportTaskDto[] Tasks { get; set; }
+    }
+}
+
+using System.ComponentModel.DataAnnotations;
+using System.Xml.Serialization;
+
+namespace TeisterMask.DataProcessor.ImportDto
+{
+    [XmlType("Task")]
+    public class ImportTaskDto
+    {
+        [Required]
+        [StringLength(40, MinimumLength = 2)]
+        [XmlElement("Name")]
+        public string Name { get; set; }
+
+        [Required]
+        [XmlElement("OpenDate")]
+        public string OpenDate { get; set; }
+
+        [Required]
+        [XmlElement("DueDate")]
+        public string DueDate { get; set; }
+
+        [Required]
+        [XmlElement("ExecutionType")]
+        public int ExecutionType { get; set; }
+
+        [Required]
+        [XmlElement("LabelType")]
+        public int LabelType { get; set; }               
+    }
+}
+
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+
+namespace TeisterMask.DataProcessor.ImportDto
+{
+    public class ImportEmployeeDto
+    {
+        [Required]
+        [StringLength(40, MinimumLength = 3)]
+        [RegularExpression(@"^[a-zA-Z\d]+$")]
+        public string Username { get; set; }
+
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; }
+        
+        [Required]
+        [RegularExpression("^[0-9]{3}-[0-9]{3}-[0-9]{4}$")]
+        public string Phone { get; set; }
+
+        public List<int> Tasks { get; set; }
+    }
+}
+
+
+namespace TeisterMask.DataProcessor
+{
+    using System;
+    using System.Globalization;
+    using System.IO;
+    using System.Linq;
+    using System.Text;
+    using System.Xml;
+    using System.Xml.Serialization;
+    using Data;
+    using Newtonsoft.Json;
+    using TeisterMask.DataProcessor.ExportDto;
+    using Formatting = Newtonsoft.Json.Formatting;
+
+    public class Serializer
+    {
+
+        public static string ExportProjectWithTheirTasks(TeisterMaskContext context)
+        {
+
+            var projects = context.Projects
+                 .Where(p => p.Tasks.Count >= 1)
+                 .Select(p => new ExportProjectsDto
+                 {
+                     TasksCount = p.Tasks.Count,
+                     ProjectName = p.Name,
+                     HasEndDate = string.IsNullOrEmpty(p.DueDate.ToString())
+                                         ? "No"
+                                         : "Yes",
+                     Tasks = p.Tasks
+                     .Select(t => new ExportTaskXmlDto
+                     {
+                         Name = t.Name,
+                         Label = t.LabelType.ToString()
+                     })
+                     .OrderBy(t => t.Name)
+                     .ToArray()
+                 })
+                 .OrderByDescending(p=> p.TasksCount)
+                 .ThenBy(p=> p.ProjectName)
+                 .ToArray();
+                       
+            
+            var xmlSerializer = new XmlSerializer(typeof(ExportProjectsDto[]),
+                                new XmlRootAttribute("Projects"));
+
+
+            var sb = new StringBuilder();
+
+            var namespaces = new XmlSerializerNamespaces(new[]
+            {
+                XmlQualifiedName.Empty
+            });
+
+           xmlSerializer.Serialize(new StringWriter(sb), projects, namespaces);
+
+            return sb.ToString().TrimEnd();
+
+        }
+
+
+        public static string ExportMostBusiestEmployees(TeisterMaskContext context, DateTime date)
+        {
+            var emplyees = context.Employees
+                .Where(e => e.EmployeesTasks.Any(t => t.Task.OpenDate >= date))
+                .OrderByDescending(e => e.EmployeesTasks.Count(t => t.Task.OpenDate >= date))
+                .ThenBy(e => e.Username)
+                .Select(e => new ExportEmployeeDto
+                {
+                    Username = e.Username,
+                    Tasks = e.EmployeesTasks
+                    .Where(t => t.Task.OpenDate >= date)
+                    .Select(t => new ExportTaskDto
+                    {
+                        TaskName = t.Task.Name,
+                        LabelType = t.Task.LabelType.ToString(),
+                        ExecutionType = t.Task.ExecutionType.ToString(),
+                        DueDate = t.Task.DueDate.ToString(@"d", CultureInfo.InvariantCulture),
+                        OpenDate = t.Task.OpenDate.ToString(@"d", CultureInfo.InvariantCulture)
+                    })
+                    .OrderByDescending(t => DateTime.ParseExact(t.DueDate, @"d", CultureInfo.InvariantCulture))
+                    .ThenBy(t => t.TaskName)
+                    .ToList()
+                })
+                .Take(10)
+                .ToList();
+
+            var json = JsonConvert.SerializeObject(emplyees, Formatting.Indented);
+
+            return json;
+        }
+
+    }
+}
+
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Xml.Serialization;
+
+namespace TeisterMask.DataProcessor.ExportDto
+{
+    [XmlType("Project")]
+    public class ExportProjectsDto
+    {
+        [XmlAttribute("TasksCount")]
+        public int TasksCount { get; set; }
+
+        [XmlElement("ProjectName")]
+        public string ProjectName { get; set; }
+
+        [XmlElement("HasEndDate")]
+        public string HasEndDate { get; set; }
+
+        [XmlArray("Tasks")]
+        public ExportTaskXmlDto[] Tasks { get; set; }
+    }
+}
+
+using System.Xml.Serialization;
+
+namespace TeisterMask.DataProcessor.ExportDto
+{
+    [XmlType("Task")]
+    public class ExportTaskXmlDto
+    {
+        [XmlElement("Name")]
+        public string Name { get; set; }
+
+        [XmlElement("Label")]
+        public string Label { get; set; }
+    }
+}
+
+
+using Newtonsoft.Json;
+using System.Collections.Generic;
+
+namespace TeisterMask.DataProcessor.ExportDto
+{
+    public class ExportEmployeeDto
+    {
+		//za Json moge i bez atributi
+        [JsonProperty("Username")]
+        public string Username { get; set; }
+
+        [JsonProperty("Tasks")]
+        public ICollection<ExportTaskDto> Tasks { get; set; }
+    }
+}
+
+using Newtonsoft.Json;
+
+namespace TeisterMask.DataProcessor.ExportDto
+{
+    public class ExportTaskDto
+    {
+
+        [JsonProperty("TaskName")]
+        public string TaskName { get; set; }
+
+        [JsonProperty("OpenDate")]
+        public string OpenDate { get; set; }
+
+        [JsonProperty("DueDate")]
+        public string DueDate { get; set; }
+
+        [JsonProperty("LabelType")]
+        public string LabelType { get; set; }
+
+        [JsonProperty("ExecutionType")]
+        public string ExecutionType { get; set; }
+    }
+}

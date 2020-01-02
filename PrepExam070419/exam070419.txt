@@ -1,0 +1,840 @@
+namespace Cinema.Data
+{
+   public static class Configuration
+    {
+        public static string ConnectionString = @"Server=DESKTOP-SRL2A15\SQLEXPRESS;Database=Cinema;Trusted_Connection=True";
+    }
+}
+
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+
+namespace Cinema.Data.Models
+{
+    public class Customer
+    {
+        [Key]
+        public int Id { get; set; }
+
+        [Required]
+        [StringLength(20, MinimumLength = 3)]
+        public string FirstName { get; set; }
+
+        [Required]
+        [StringLength(20, MinimumLength = 3)]
+        public string LastName { get; set; }
+
+        [Required]
+        [Range(12, 110)]
+        public int Age { get; set; }
+
+        [Required]
+        [Range(0, double.MaxValue)]
+        public decimal Balance { get; set; }
+
+        public ICollection<Ticket> Tickets { get; set; }
+        = new HashSet<Ticket>();
+                
+    }
+}
+
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+
+namespace Cinema.Data.Models
+{
+    public class Hall
+    {
+        public int Id { get; set; }
+
+        [Required]
+        [StringLength(20, MinimumLength = 3)]
+        public string Name { get; set; }
+
+        public bool Is4Dx { get; set; }
+
+        public bool Is3D { get; set; }
+
+        public ICollection<Projection> Projections { get; set; }
+            = new HashSet<Projection>();
+
+        public ICollection<Seat> Seats { get; set; }
+            = new HashSet<Seat>();
+    }
+}
+
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+
+namespace Cinema.Data.Models
+{
+    public class Movie
+    {
+        public int Id { get; set; }
+
+        [Required]
+        [StringLength(20, MinimumLength = 3)]
+        public string Title { get; set; }
+
+        [Required]
+        public Genre Genre { get; set; }
+
+        [Required]
+        public TimeSpan Duration { get; set; }
+
+        [Required]
+        [Range(1,10)]
+        public double Rating { get; set; }
+
+        [Required]
+        [StringLength(20, MinimumLength = 3)]
+        public string Director { get; set; }
+
+        public ICollection<Projection> Projections { get; set; }
+            = new HashSet<Projection>();
+                   
+    }
+
+    public enum Genre
+    {
+        Action = 0,
+        Drama = 1,
+        Comedy = 2,
+        Crime = 3,
+        Western = 4,
+        Romance = 5,
+        Documentary = 6,
+        Children = 7,
+        Animation = 8,
+        Musical = 9
+    }
+}
+
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+
+namespace Cinema.Data.Models
+{
+    public class Projection
+    {
+        [Key]
+        public int Id { get; set; }
+
+        [Required]
+        public int MovieId { get; set; }
+        public Movie Movie { get; set; }
+
+        [Required]
+        public int HallId { get; set; }
+        public Hall Hall { get; set; }
+
+        [Required]
+        public DateTime DateTime { get; set; }
+
+        public ICollection<Ticket> Tickets { get; set; }
+        = new HashSet<Ticket>();
+    }
+}
+
+using System.ComponentModel.DataAnnotations;
+
+namespace Cinema.Data.Models
+{
+    public class Seat
+    {
+        [Key]
+        public int Id { get; set; }
+
+        public int HallId { get; set; }
+        public Hall Hall { get; set; }
+    }
+}
+
+using System.ComponentModel.DataAnnotations;
+
+namespace Cinema.Data.Models
+{
+    public class Ticket
+    {
+        [Key]
+        public int Id { get; set; }
+        
+        [Required]
+        [Range(0.01, double.MaxValue)]
+        public decimal Price { get; set; }
+        
+        [Required]
+        public int CustomerId { get; set; }
+        public Customer Customer { get; set; }
+
+        [Required]
+        public int ProjectionId { get; set; }
+        public Projection Projection { get; set; }
+    }
+}
+
+namespace Cinema.Data
+{
+    using Cinema.Data.Models;
+    using Microsoft.EntityFrameworkCore;
+
+    public class CinemaContext : DbContext
+    {
+        public CinemaContext()  { }
+
+        public CinemaContext(DbContextOptions options)
+            : base(options)   { }
+
+        public DbSet<Customer> Customers { get; set; }
+        public DbSet<Hall> Halls { get; set; }
+        public DbSet<Movie> Movies { get; set; }
+        public DbSet<Projection> Projections { get; set; }
+        public DbSet<Seat> Seats  { get; set; }
+        public DbSet<Ticket> Tickets { get; set; }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            if (!optionsBuilder.IsConfigured)
+            {
+                optionsBuilder
+                    .UseSqlServer(Configuration.ConnectionString);
+            }
+        }
+    }
+}
+
+
+
+
+
+IMPORT
+namespace Cinema.DataProcessor
+{
+    using System;
+    using System.Linq;
+    using System.Text;
+    using System.Xml.Serialization;
+    using System.Collections.Generic;
+    using System.ComponentModel.DataAnnotations;
+
+    using Data;
+    using System.IO;
+    using Newtonsoft.Json;
+    using Cinema.Data.Models;
+    using System.Globalization;
+    using Cinema.DataProcessor.ImportDto;
+
+    public static class Deserializer
+    {
+        private const string ErrorMessage = "Invalid data!";
+        private const string SuccessfulImportMovie
+            = "Successfully imported {0} with genre {1} and rating {2}!";
+        private const string SuccessfulImportHallSeat
+            = "Successfully imported {0}({1}) with {2} seats!";
+        private const string SuccessfulImportProjection
+            = "Successfully imported projection {0} on {1}!";
+        private const string SuccessfulImportCustomerTicket
+            = "Successfully imported customer {0} {1} with bought tickets: {2}!";
+
+        public static string ImportMovies(CinemaContext context, string jsonString)
+        {
+            var moviesDtos = JsonConvert.DeserializeObject<ImportMovieDto[]>(jsonString);
+
+            var movies = new List<Movie>();
+
+            var sb = new StringBuilder();
+
+
+            foreach (var dto in moviesDtos)
+            {
+                if (!IsValid(dto))
+                {
+                    sb.AppendLine(ErrorMessage);
+                    continue;
+                }
+
+                var movie = new Movie
+                {
+                    Title = dto.Title,
+                    Genre = dto.Genre,
+                    Duration = dto.Duration,
+                    Rating = dto.Rating,
+                    Director = dto.Director
+                };
+
+                movies.Add(movie);
+                sb.AppendLine(string.Format(SuccessfulImportMovie, dto.Title, dto.Genre, dto.Rating.ToString("F2")));
+
+            }
+
+            context.Movies.AddRange(movies);
+            context.SaveChanges();
+
+            return sb.ToString().TrimEnd();
+        }
+
+        public static string ImportHallSeats(CinemaContext context, string jsonString)
+        {
+            var hallSeatsDto = JsonConvert.DeserializeObject<HallSeatImportDto[]>(jsonString);
+
+            var sb = new StringBuilder();
+
+            foreach (var dto in hallSeatsDto)
+            {
+                if (!IsValid(dto))
+                {
+                    sb.AppendLine(ErrorMessage);
+                    continue;
+                }
+
+
+                var hall = new Hall
+                {
+                    Name = dto.Name,
+                    Is4Dx = dto.Is4Dx,
+                    Is3D = dto.Is3D
+                };
+                context.Halls.Add(hall);
+
+
+                AddSeatsInHall(context, hall.Id, dto.Seats);
+
+                string projectionType = TypeProjection(dto.Is3D, dto.Is4Dx);
+
+                sb.AppendLine(string.Format(SuccessfulImportHallSeat, dto.Name, projectionType, dto.Seats));
+            }
+
+            context.SaveChanges();
+
+            return sb.ToString().TrimEnd();
+        }
+
+        public static string ImportProjections(CinemaContext context, string xmlString)
+        {
+            var xmlSerializer = new XmlSerializer(typeof(ImportProjectionDto[]),
+                new XmlRootAttribute("Projections"));
+
+            var objects = (ImportProjectionDto[])xmlSerializer
+                .Deserialize(new StringReader(xmlString));
+
+            var sb = new StringBuilder();
+
+            foreach (var dto in objects)
+            {
+                if (IsValid(dto) && IsValidMovieId(context, dto.MovieId) && IsvalidHallId(context, dto.HallId))
+                {
+                    var projection = new Projection
+                    {
+                        MovieId = dto.MovieId,
+                        HallId = dto.HallId,
+                        DateTime = DateTime.ParseExact(
+                            dto.DateTime,
+                            "yyyy-MM-dd HH:mm:ss",
+                            CultureInfo.InvariantCulture
+                            )
+                    };
+
+                    context.Projections.Add(projection);
+                    var dateTimeRes = projection.DateTime.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture);
+                    sb.AppendLine(string.Format(SuccessfulImportProjection, projection.Movie.Title, dateTimeRes));
+                }
+                else
+                {
+                    sb.AppendLine(ErrorMessage);
+                }
+            }
+
+            context.SaveChanges();
+
+            return sb.ToString().TrimEnd();
+        }
+
+        public static string ImportCustomerTickets(CinemaContext context, string xmlString)
+        {
+            var xmlSerializer = new XmlSerializer(typeof(ImportCustomerTicketDto[]),
+               new XmlRootAttribute("Customers"));
+
+            var objects = (ImportCustomerTicketDto[])xmlSerializer
+                .Deserialize(new StringReader(xmlString));
+
+            var sb = new StringBuilder();
+            foreach (var dto in objects)
+            {
+                if (IsValid(dto))
+                {
+                    var customer = new Customer
+                    {
+                        FirstName = dto.FirstName,
+                        LastName = dto.LastName,
+                        Age = dto.Age,
+                        Balance = dto.Balance
+                    };
+
+                    context.Customers.Add(customer);
+                    AddCustomerTickets(context, customer.Id, dto.Tickets);
+                    sb.AppendLine(string.Format(
+                        SuccessfulImportCustomerTicket,
+                        dto.FirstName,
+                        dto.LastName,
+                        dto.Tickets.Count()));
+                }
+                else
+                {
+                    sb.AppendLine(ErrorMessage);
+                }
+            }
+
+            context.SaveChanges();
+
+            return sb.ToString().TrimEnd();
+        }
+
+        private static void AddCustomerTickets(CinemaContext context, 
+                    int customerId, TicketsCustomerImportDto[] dtoTickets)
+        {
+            var tickets = new List<Ticket>();
+
+            foreach (var dto in dtoTickets)
+            {
+                if (IsValid(dto))
+                {
+                    var ticket = new Ticket
+                    {
+                        ProjectionId = dto.ProjectionId,
+                        CustomerId = customerId,
+                        Price = dto.Price
+                    };
+                    tickets.Add(ticket);
+                }
+            }
+
+            context.Tickets.AddRange(tickets);
+            context.SaveChanges();
+        }
+
+
+        private static bool IsvalidHallId(CinemaContext context, int hallId)
+        {
+            return context.Halls.Any(h => h.Id == hallId);
+        }
+
+
+        private static bool IsValidMovieId(CinemaContext context, int movieId)
+        {
+            return context.Movies.Any(m => m.Id == movieId);
+        }
+
+
+        private static void AddSeatsInHall(CinemaContext context, int hallId, int countSeats)
+        {
+            var seats = new List<Seat>();
+
+            for (int i = 0; i < countSeats; i++)
+            {
+                seats.Add(new Seat { HallId = hallId });
+            }
+            context.AddRange(seats);
+            context.SaveChanges();
+        }
+
+
+        private static string TypeProjection(bool is3D, bool is4Dx)
+        {
+            var result = "Normal";
+            if (is3D == true && is4Dx == true)
+            {
+                result = "4Dx/3D";
+            }
+            else if (is3D == true && is4Dx == false)
+            {
+                result = "3D";
+            }
+            else if (is3D == false && is4Dx == true)
+            {
+                result = "4Dx";
+            }
+
+            return result;
+        }
+
+
+        private static bool IsValid(this object obj)
+        {
+            var validationContext = new ValidationContext(obj);
+            var validationResults = new List<ValidationResult>();
+
+            var isValid = Validator.TryValidateObject(obj, validationContext, validationResults, true);
+
+            return isValid;
+        }
+    }
+}
+
+using System.ComponentModel.DataAnnotations;
+
+namespace Cinema.DataProcessor.ImportDto
+{
+    public class HallSeatImportDto
+    {
+        [Required]
+        [StringLength(20, MinimumLength = 3)]
+        public string Name { get; set; }
+
+        public bool Is4Dx { get; set; }
+
+        public bool Is3D { get; set; }
+        
+        [Range(1,int.MaxValue)]
+        public int Seats { get; set; }
+    }
+}
+
+using System.ComponentModel.DataAnnotations;
+using System.Xml.Serialization;
+
+namespace Cinema.DataProcessor.ImportDto
+{
+    [XmlType("Customer")]
+    public class ImportCustomerTicketDto
+    {
+        [Required]
+        [StringLength(20, MinimumLength = 3)]
+        [XmlElement("FirstName")]
+        public string FirstName { get; set; }
+
+        [Required]
+        [StringLength(20, MinimumLength = 3)]
+        [XmlElement("LastName")]
+        public string LastName { get; set; }
+
+        [Required]
+        [Range(12, 110)]
+        [XmlElement("Age")]
+        public int Age { get; set; }
+
+        [Required]
+        [Range(0, double.MaxValue)]
+        [XmlElement("Balance")]
+        public decimal Balance { get; set; }
+
+        [XmlArray("Tickets")]
+        public TicketsCustomerImportDto[] Tickets { get; set; }
+
+    }   
+}
+
+using System.ComponentModel.DataAnnotations;
+using System.Xml.Serialization;
+
+namespace Cinema.DataProcessor.ImportDto
+{
+    [XmlType("Ticket")]
+    public class TicketsCustomerImportDto
+    {
+        [Required]
+        [Range(typeof(decimal), "0.01", "1000000000000000")]
+        [XmlElement("Price")]
+        public decimal Price { get; set; }
+
+        [Required]
+        [XmlElement("ProjectionId")]
+        public int ProjectionId { get; set; }
+    }
+}
+
+
+
+using System;
+using System.ComponentModel.DataAnnotations;
+
+namespace Cinema.DataProcessor.ImportDto
+{
+    public class ImportMovieDto
+    {
+        [Required]
+        [StringLength(20, MinimumLength = 3)]
+        public string Title { get; set; }
+
+        [Required]
+        public Genre Genre { get; set; }
+
+        [Required]
+        public TimeSpan Duration { get; set; }
+
+        [Required]
+        [Range(1, 10)]
+        public double Rating { get; set; }
+
+        [Required]
+        [StringLength(20, MinimumLength = 3)]
+        public string Director { get; set; }
+    }
+}
+
+using System.ComponentModel.DataAnnotations;
+using System.Xml.Serialization;
+
+namespace Cinema.DataProcessor.ImportDto
+{
+    [XmlType("Projection")]
+    public class ImportProjectionDto
+    {
+        [Required]
+        [XmlElement("MovieId")]
+        public int MovieId { get; set; }
+
+        [Required]
+        [XmlElement("HallId")]
+        public int HallId { get; set; }
+        
+        [Required]
+        [XmlElement("DateTime")]
+        public string DateTime { get; set; }
+    }
+}
+
+
+namespace Cinema.DataProcessor
+{
+    using System;
+    using System.IO;
+    using System.Linq;
+    using System.Text;
+    using System.Xml; // ne rabotqt neshto zaedno s Newtonsoft.Json i zakomentirwa se ednoto// 
+    using System.Xml.Serialization;
+    using Cinema.DataProcessor.ExportDto;
+    using Data;
+    using Newtonsoft.Json;
+
+    public class Serializer
+    {
+        public static string ExportTopMovies(CinemaContext context, int rating)
+        {
+            var movies = context.Movies
+                .Where(m => m.Rating >= rating
+                    && m.Projections.Any(p => p.Tickets.Count > 0))
+                .OrderByDescending(m=> m.Rating)
+                .ThenByDescending(m=> m.Projections.Sum(p => p.Tickets.Sum(t => t.Price)))
+                .Select(m => new MovieExportDto
+                {
+                    MovieName = m.Title,
+                    Rating = m.Rating.ToString("F2"),
+                    TotalIncomes = m.Projections.Sum(p => p.Tickets.Sum(t => t.Price)).ToString("F2"),
+                    Customers = m.Projections
+                        .SelectMany(p => p.Tickets)
+                            .Select(c => new CustomerMovieExportDto
+                            {
+                                FirstName = c.Customer.FirstName,
+                                LastName = c.Customer.LastName,
+                                Balance = c.Customer.Balance.ToString("F2")
+                            })
+                            .OrderByDescending(c => c.Balance)
+                            .ThenBy(c => c.FirstName)
+                            .ThenBy(c => c.LastName)
+                            .ToList()   
+                })
+                .Take(10)
+                .ToList();
+
+            var result = JsonConvert.SerializeObject(movies, Formatting.Indented);
+            return result;
+        }
+
+        public static string ExportTopCustomers(CinemaContext context, int age)
+        {
+            var customers = context
+                .Customers
+                .Where(c => c.Age >= age)
+                .OrderByDescending(c => c.Tickets.Sum(t => t.Price))
+                .Take(10)
+                .Select(c => new ExportTopCustomersDto
+                {
+                    FirstName = c.FirstName,
+                    LastName = c.LastName,
+                    SpentMoney = c.Tickets.Sum(t => t.Price).ToString("F2"),
+                    SpentTime = TimeSpan.FromSeconds(
+                        c.Tickets.Sum(t => t.Projection.Movie.Duration.TotalSeconds))
+                        .ToString(@"hh\:mm\:ss")
+                })
+                .ToArray();
+                                          
+
+            var xmlSerializer = new XmlSerializer(typeof(ExportTopCustomersDto[]),
+                                new XmlRootAttribute("Customers"));
+
+
+            var sb = new StringBuilder();
+
+            var namespaces = new XmlSerializerNamespaces(new[]
+            {
+                XmlQualifiedName.Empty
+            });
+
+            xmlSerializer.Serialize(new StringWriter(sb), customers, namespaces);
+
+            return sb.ToString().TrimEnd();
+        }
+    }
+}
+
+
+using System.Collections.Generic;
+
+namespace Cinema.DataProcessor.ExportDto
+{
+    public class MovieExportDto
+    {
+        public string MovieName { get; set; }
+
+        public string Rating { get; set; }
+
+        public string TotalIncomes { get; set; }
+
+        public ICollection<CustomerMovieExportDto> Customers { get; set; }
+    }
+}
+
+namespace Cinema.DataProcessor.ExportDto
+{
+    public class CustomerMovieExportDto
+    {
+        public string FirstName { get; set; }
+
+        public string LastName { get; set; }
+
+        public string Balance { get; set; }
+    }
+}
+
+
+using System.Xml.Serialization;
+
+namespace Cinema.DataProcessor.ExportDto
+{
+    [XmlType("Customer")]
+    public class ExportTopCustomersDto
+    {
+        [XmlAttribute("FirstName")]
+        public string FirstName { get; set; }
+
+        [XmlAttribute("LastName")]
+        public string LastName { get; set; }
+
+        [XmlElement("SpentMoney")]
+        public string SpentMoney { get; set; }
+
+        [XmlElement("SpentTime")]
+        public string SpentTime { get; set; }
+    }
+}
+
+namespace Cinema
+{
+    using System;
+    using System.IO;
+
+    using AutoMapper;
+    using Microsoft.EntityFrameworkCore;
+
+    using Data;
+
+    public class StartUp
+    {
+        public static void Main(string[] args)
+        {
+            var context = new CinemaContext();
+
+            Mapper.Initialize(config => config.AddProfile<CinemaProfile>());
+
+            ResetDatabase(context, shouldDropDatabase: false);
+
+            var projectDir = GetProjectDirectory();
+
+           ImportEntities(context, projectDir + @"Datasets/", projectDir + @"ImportResults/");
+
+            ExportEntities(context, projectDir + @"ExportResults/");
+
+            using (var transaction = context.Database.BeginTransaction())
+            {
+                transaction.Rollback();
+            }
+        }
+
+        private static void ImportEntities(CinemaContext context, string baseDir, string exportDir)
+        {
+            var movies =
+                DataProcessor.Deserializer.ImportMovies(context,
+                    File.ReadAllText(baseDir + "movies.json"));
+            PrintAndExportEntityToFile(movies, exportDir + "Actual Result - ImportMovies.txt");
+
+            var hallSeats =
+                DataProcessor.Deserializer.ImportHallSeats(context,
+                    File.ReadAllText(baseDir + "halls-seats.json"));
+            PrintAndExportEntityToFile(hallSeats, exportDir + "Actual Result - ImportHallSeats.txt");
+
+            var projections = DataProcessor.Deserializer.ImportProjections(context,
+                File.ReadAllText(baseDir + "projections.xml"));
+            PrintAndExportEntityToFile(projections, exportDir + "Actual Result - ImportProjections.txt");
+
+            var customerTickets =
+                DataProcessor.Deserializer.ImportCustomerTickets(context,
+                    File.ReadAllText(baseDir + "customers-tickets.xml"));
+            PrintAndExportEntityToFile(customerTickets, exportDir + "Actual Result - ImportCustomerTickets.txt");
+        }
+
+        private static void ExportEntities(CinemaContext context, string exportDir)
+        {
+            var exportTopMovies = DataProcessor.Serializer.ExportTopMovies(context, 5);
+            Console.WriteLine(exportTopMovies);
+            File.WriteAllText(exportDir + "Actual Result - ExportTopMovies.json", exportTopMovies);
+
+            var exportTopCustomers = DataProcessor.Serializer.ExportTopCustomers(context, 14);
+            Console.WriteLine(exportTopCustomers);
+            File.WriteAllText(exportDir + "Actual Result - ExportTopCustomers.xml", exportTopCustomers);
+        }
+
+        private static void ResetDatabase(CinemaContext context, bool shouldDropDatabase = false)
+        {
+            if (shouldDropDatabase)
+            {
+                context.Database.EnsureDeleted();
+            }
+
+            if (context.Database.EnsureCreated())
+            {
+                return;
+            }
+
+            var disableIntegrityChecksQuery = "EXEC sp_MSforeachtable @command1='ALTER TABLE ? NOCHECK CONSTRAINT ALL'";
+            context.Database.ExecuteSqlCommand(disableIntegrityChecksQuery);
+
+            var deleteRowsQuery = "EXEC sp_MSforeachtable @command1='SET QUOTED_IDENTIFIER ON;DELETE FROM ?'";
+            context.Database.ExecuteSqlCommand(deleteRowsQuery);
+
+            var enableIntegrityChecksQuery =
+                "EXEC sp_MSforeachtable @command1='ALTER TABLE ? WITH CHECK CHECK CONSTRAINT ALL'";
+            context.Database.ExecuteSqlCommand(enableIntegrityChecksQuery);
+
+            var reseedQuery =
+                "EXEC sp_MSforeachtable @command1='IF OBJECT_ID(''?'') IN (SELECT OBJECT_ID FROM SYS.IDENTITY_COLUMNS) DBCC CHECKIDENT(''?'', RESEED, 0)'";
+            context.Database.ExecuteSqlCommand(reseedQuery);
+        }
+
+        private static void PrintAndExportEntityToFile(string entityOutput, string outputPath)
+        {
+            Console.WriteLine(entityOutput);
+            File.WriteAllText(outputPath, entityOutput.TrimEnd());
+        }
+
+        private static string GetProjectDirectory()
+        {
+            var currentDirectory = Directory.GetCurrentDirectory();
+            var directoryName = Path.GetFileName(currentDirectory);
+            var relativePath = directoryName.StartsWith("netcoreapp") ? @"../../../" : string.Empty;
+
+            return relativePath;
+        }
+    }
+}

@@ -1,0 +1,67 @@
+Entity Framework
+
+Introduction
+https://youtu.be/TYUV9JFRNSM 	Mariela Petrowa
+
+DB APPS Introduction
+https://youtu.be/S7cOBxW6QYA	Ивайло Кенов
+https://youtu.be/XK7Kd7Yd_2s	Кристиян Иванов
+
+ORM Fundamentals 
+https://youtu.be/NDfNllvmVpc	Стамо Петков
+https://youtu.be/fMmnbWMxirE	Ивайло Кенов
+https://github.com/anupavanm/csharp-design-patterns-for-humans
+
+EntityFramework Introduction
+https://youtu.be/kpe8kJH3FHY	Ивайло Кенов 
+https://youtu.be/VDAP8AgK_-4	Кристиян Иванов 
+
+Code First
+https://youtu.be/X_0D6RyZi5k	Ивайло Кенов
+https://youtu.be/YWDC8ufZ678	Кристиян Иванов
+
+Entity Relations
+https://youtu.be/OmmHVfth3pY	Ивайло Кенов
+https://youtu.be/XTpiEhd28fg	Кристиян Иванов
+
+Advanced Quering
+https://youtu.be/c5k9Cr6inF4	Ивайло Кенов
+https://youtu.be/bdaCHP4qWWA	Кристиян Иванов
+
+C# Auto Mapping Objects
+https://youtu.be/yN6QQ2PFk5U	Стамо Петков	
+https://youtu.be/YvhbtBRwK10	Стоян Шопов
+https://youtu.be/_ZYvcYUN0KI	Кристиян Иванов
+https://youtu.be/0eDoIUSEk5w	Кристиян Иванов
+
+JSON Procesing
+https://youtu.be/KcB5TLqUHLA	Стамо Петков
+https://youtu.be/7ZXjH9zbY2M	Кристиян Иванов
+
+XML Procesing
+https://youtu.be/WrYC4Un1f-k	Николай Костов
+https://youtu.be/vXMu82rDShE	Кристиян Иванов
+
+Design Patterns
+https://youtu.be/5UVNgus2gIo	Ивайло Кенов
+https://youtu.be/IWopMLFUFHw	Кристиян Иванов
+
+Best Pracitices
+https://youtu.be/FTFLYyPpTpM	Ивайло Кенов
+https://youtu.be/i9f24Sy9cLg	Кристиянн Иванов
+
+ASP.NET
+https://youtu.be/BGP09c7CcB4 	Ивайло Кенов
+https://youtu.be/h_EIra4WsUY	Кристиян Иванов
+
+ExamPrepar
+https://youtu.be/JM8a4zNeEfs	Слави Капсалов
+https://youtu.be/r64cTNex5oQ	Стоян Шопов
+
+
+Ако някой от вас чудят какво да правят, могат да открият помощни видеа за първият курс C# Web Basics:
+https://softuni.bg/trainings/2613/csharp-web-basics-january-2020#lesson-14139
+
+Също така, ако не сте гледали Best Practices and Architecture и Workshop - ASP.NET Core,
+ ви съветвам да го направите, понеже това, което виждате наготово там, в курса ще го 
+ разписаме и ще видите как работи HTTP, MVC, Razor View и още куп други неща.
